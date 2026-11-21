@@ -52,6 +52,27 @@ def get_charge(idempotency_key):
     finally:
         conn.close()
 
+def get_charge_by_id(charge_id):
+    conn = sqlite3.connect("charges.db")
+    conn.row_factory = sqlite3.Row
+
+    try:
+        cursor = conn.execute("""
+            SELECT * FROM charges
+            WHERE charge_id = ?
+        """, (charge_id,))
+
+        row = cursor.fetchone()
+
+        if row is None:
+            return None
+
+        return dict(row)
+    finally:
+        conn.close()
+
+
+
 
 
 if __name__ == "__main__":

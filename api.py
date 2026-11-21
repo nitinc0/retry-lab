@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from main import process_charge
-from db import initialize_database
+from db import initialize_database, get_charge_by_id
 
 
 # this is the server, handles incoming HTTP requests, parsing them, sending responses 
@@ -34,3 +34,17 @@ def create_charge(request: ChargeRequest):
             status_code=409, # 409 = conflict with existing state 
             detail=str(e)
         )
+
+# looking up by its chargeID not idempotency key 
+@app.get("/charges/{charge_id}")
+def read_charge(charge_id: str):
+
+    charge = get_charge_by_id(charge_id)
+
+    if charge is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Charge not found"
+        )
+
+    return charge
