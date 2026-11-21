@@ -23,29 +23,27 @@ You can demonstrate that a client experiences a timeout, retries, and the server
 # data is the same, if so return stored data, else throw an exception. 
 
 import uuid
-
-transaction_log = {}
+from db import insert_charge, get_charge 
 
 
 # simulates the server, taking in an order doing work 
 def process_charge(idempotency_key, order_id, amount):
-    if idempotency_key in transaction_log:
-        if transaction_log[idempotency_key]["order_id"] == order_id and transaction_log[idempotency_key]["amount"] == amount:
-            return transaction_log[idempotency_key]
+
+    # 1 - check for existing charge 
+    existing_charge = get_charge(idempotency_key)
+
+    # 2 - if existing, then validate it, return if all good, else return error
+    if existing_charge is not None:
+        if existing_charge["order_id"] == order_id and existing_charge["amount"] == amount:
+            return existing_charge
         else:
             raise ValueError("Idempotency key reused with different data")
 
-    else:
-        charge_id = str(uuid.uuid4())
+    # 3 - charge not existing, create it
+    charge_id = str(uuid.uuid4())
+    insert_charge(idempotency_key, charge_id, order_id, amount, "success")
 
-        transaction_log[idempotency_key] = {
-            "order_id": order_id,
-            "amount": amount,
-            "charge_id": charge_id,
-            "status": "success"
-        }
-
-        return transaction_log[idempotency_key]
+    return get_charge(idempotency_key)
 
 
 # using this to simulate network failure. Simulate calling the function. 

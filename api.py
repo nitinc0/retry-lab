@@ -2,10 +2,14 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from main import process_charge
+from db import initialize_database
 
 
 # this is the server, handles incoming HTTP requests, parsing them, sending responses 
 app = FastAPI()
+
+
+initialize_database()
 
 
 # pydantic model, schema/structure of data that clients are allowed to send. FastAPI uses this model to validate incoming data
