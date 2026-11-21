@@ -23,7 +23,7 @@ You can demonstrate that a client experiences a timeout, retries, and the server
 # data is the same, if so return stored data, else throw an exception. 
 
 import uuid
-from db import insert_charge, get_charge 
+from db import get_charge, insert_charge, record_request_attempt
 
 
 # simulates the server, taking in an order doing work 
@@ -35,13 +35,21 @@ def process_charge(idempotency_key, order_id, amount):
     # 2 - if existing, then validate it, return if all good, else return error
     if existing_charge is not None:
         if existing_charge["order_id"] == order_id and existing_charge["amount"] == amount:
+            # logging attempt
+            record_request_attempt(idempotency_key, order_id, amount, "replayed")
             return existing_charge
         else:
+            # logging attempt
+            record_request_attempt(idempotency_key, order_id, amount, "conflict")
             raise ValueError("Idempotency key reused with different data")
+            
 
     # 3 - charge not existing, create it
     charge_id = str(uuid.uuid4())
     insert_charge(idempotency_key, charge_id, order_id, amount, "success")
+    # logging attempt
+    record_request_attempt(idempotency_key, order_id, amount, "created")
+
 
     return get_charge(idempotency_key)
 
