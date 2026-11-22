@@ -1,6 +1,7 @@
 import json
-
+import sqlite3
 from openai import OpenAI
+from db import get_request_attempts, get_charge_records
 
 client = OpenAI(
     base_url="http://localhost:11434/v1/",
@@ -46,7 +47,35 @@ tools = [
     }
 ]
 
+available_tools = {
+    "get_charge_records": get_charge_records,
+    "get_request_attempts": get_request_attempts
+}
 
+def execute_tool(call):
+    name = call.function.name
+
+    try:
+        args = json.loads(call.function.arguments)
+
+        if name not in available_tools:
+            raise ValueError(f"Unknown tool: {name}")
+
+        if (
+            not isinstance(args, dict)
+            or set(args) != {"order_id"}
+            or not isinstance(args["order_id"], str)
+            or not args["order_id"].strip()
+        ):
+            raise ValueError("Expected a nonempty order_id string")
+
+
+        function = available_tools[name]
+        result = function(args["order_id"])
+
+        return {"records": result}
+    except (ValueError, TypeError, sqlite3.Error) as e:
+        return {"error": str(e)}
 
 def main():
     messages = [
@@ -54,8 +83,9 @@ def main():
             "role": "system",
             "content": (
                 "You investigate payment incidents. "
-                "Use database tools to find evidence. "
-                "Never invent charge records."
+                "Use both database tools before answering. "
+                "Base conclusions only on actual records. "
+                "Request logs cannot prove a client received a response."
             )
         },
         {
@@ -64,22 +94,45 @@ def main():
         }
     ]
 
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=messages,
-        tools=tools
-    )
+    MAX_STEPS = 5
 
-    message = response.choices[0].message
+    for step in range(MAX_STEPS):
+        print(f"\n--- Agent step {step + 1} ---")
 
-    if message.tool_calls:
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            tools=tools
+        )
+
+        message = response.choices[0].message
+
+        # Save the assistant's message in conversation history
+        messages.append(message.model_dump(exclude_none=True))
+
+        # No tool calls means the model is finished
+        if not message.tool_calls:
+            print("\nAgent answer:")
+            print(message.content)
+            return
+
+        # Execute every tool requested by the model
         for call in message.tool_calls:
             print("Tool requested:", call.function.name)
-            print("Arguments:", json.loads(call.function.arguments))
-    else:
-        print("Model answered without a tool:", message.content)
+            print("Arguments:", call.function.arguments)
 
-    print(message)
+            result = execute_tool(call)
+
+            print("Tool result:", json.dumps(result, indent=2))
+
+            # Send the result back into conversation history
+            messages.append({
+                "role": "tool",
+                "tool_call_id": call.id,
+                "content": json.dumps(result)
+            })
+
+    print("Agent stopped: maximum steps reached.")
 
 
 if __name__ == "__main__":
