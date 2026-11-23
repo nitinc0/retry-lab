@@ -14,6 +14,9 @@ def initialize_database():
         )
     """)
 
+    conn.commit()
+    conn.close()
+
     conn = sqlite3.connect("request_attempts.db")
 
     # table for number of requests per thing
@@ -104,7 +107,7 @@ def record_request_attempt(idempotency_key, order_id, amount, outcome):
 
 #first tool for the agent (gets all the charge records givenan order ID)
 def get_charge_records(order_id):
-    conn = sqlite3.connect("request_attempts.db")
+    conn = sqlite3.connect("charges.db")
     conn.row_factory = sqlite3.Row
 
     try:
