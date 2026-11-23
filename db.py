@@ -136,6 +136,7 @@ def get_request_attempts(order_id):
         rows = cursor.fetchall()
 
         return [dict(row) for row in rows]
+        # this returns all the request attempts for an order_id
 
     finally:
         conn.close()

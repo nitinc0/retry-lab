@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from main import process_charge
-from db import initialize_database, get_charge_by_id
+from db import initialize_database, get_charge_by_id, get_request_attempts
 
 
 # this is the server, handles incoming HTTP requests, parsing them, sending responses 
@@ -48,3 +48,41 @@ def read_charge(charge_id: str):
         )
 
     return charge
+
+
+
+# Return the request ID, attempt count, success count, and most recent outcome
+@app.get("/requests/{order_id}/summary")
+def get_request_summmary(order_id: str):
+    try:
+        summary = {
+        "order_id" : order_id,
+        "attempt_count" : 0,
+        "success_count" : 0,
+        "most_recent_outcome" : None
+
+        }
+        all_reqs = get_request_attempts(order_id) # gets us all the request attempts for that order_id
+        most_recent_outcome = all_reqs[0]["created_at"]
+
+        for req in all_reqs:
+
+            summary["attempt_count"] += 1
+            if req["outcome"] == "success":
+                summary["success_count"] += 1
+
+
+            # FINISH THIS UP, LAST CREATED TIMESTAMP
+            if req["created_at"] < most_recent_outcome:
+                summary["most_recent_outcome"] = req
+
+        return summary
+    except ValueError as e: # error from get_request_attempts if order_id not existent
+        raise HTTPException(
+            status_code=404,
+            detail="Order_id not found"
+        )
+
+        
+
+
